@@ -65,7 +65,8 @@ void UnvQuery::stripColors(char *dst, const char *src, size_t maxChars)
 UnvQuery::UnvQuery(string master, unsigned short port, unsigned short protocol, bool useColor)
 {
 	hostent     *targetHost;
-	sockaddr_in localAddr;
+	sockaddr_in masterLocalAddr;
+	sockaddr_in serverLocalAddr;
 	timeval     timeout;
 
 	// copy parameters
@@ -84,37 +85,67 @@ UnvQuery::UnvQuery(string master, unsigned short port, unsigned short protocol, 
 	// resolve master address
 	targetHost = gethostbyname(master.c_str());
 
-	// assemble bind address
-	memset(&localAddr, 0, sizeof(localAddr));
-	localAddr.sin_family = AF_INET;
-	localAddr.sin_port   = 0;
-	localAddr.sin_addr.s_addr = htonl(INADDR_ANY);
+	// assemble master bind address
+	memset(&masterLocalAddr, 0, sizeof(masterLocalAddr));
+	masterLocalAddr.sin_family = AF_INET;
+	masterLocalAddr.sin_port   = 0;
+	masterLocalAddr.sin_addr.s_addr = htonl(INADDR_ANY);
 
-	// assemble target address
+	// assemble server bind address
+	memset(&serverLocalAddr, 0, sizeof(serverLocalAddr));
+	serverLocalAddr.sin_family = AF_INET;
+	serverLocalAddr.sin_port   = 0;
+	serverLocalAddr.sin_addr.s_addr = htonl(INADDR_ANY);
+
+	// assemble master target address
 	memset(&this->masterAddr, 0, sizeof(this->masterAddr));
 	this->masterAddr.sin_family = AF_INET;
 	this->masterAddr.sin_port   = htons(port);
 	memcpy((void *)&this->masterAddr.sin_addr, targetHost->h_addr_list[0], targetHost->h_length);
 
-	// create socket
-	this->sock = socket(AF_INET, SOCK_DGRAM, 0);
-	if (this->sock < 0)
+	// create master socket
+	this->masterSock = socket(AF_INET, SOCK_DGRAM, 0);
+	if (this->masterSock < 0)
 	{
 		cerr << FATAL << "Failed to create socket." << endl;
 		throw -1;
 	}
 
-	// set socket options
+	// set master socket options
 	timeout.tv_sec  = TIMEOUT_S;
 	timeout.tv_usec = 0;
-	if (setsockopt(this->sock, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout)) < 0)
+	if (setsockopt(this->masterSock, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout)) < 0)
 	{
 		cerr << FATAL << "Failed to set socket options." << endl;
 		throw -2;
 	}
 
-	// bind socket
-	if (bind(this->sock, (sockaddr *)&localAddr, sizeof(localAddr)) < 0)
+	// bind master socket
+	if (bind(this->masterSock, (sockaddr *)&masterLocalAddr, sizeof(masterLocalAddr)) < 0)
+	{
+		cerr << FATAL << "Failed to bind socket to " << port << "." << endl;
+		throw -3;
+	}
+
+	// create server socket
+	this->serverSock = socket(AF_INET, SOCK_DGRAM, 0);
+	if (this->serverSock < 0)
+	{
+		cerr << FATAL << "Failed to create socket." << endl;
+		throw -1;
+	}
+
+	// set server socket options
+	timeout.tv_sec  = TIMEOUT_S;
+	timeout.tv_usec = 0;
+	if (setsockopt(this->serverSock, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout)) < 0)
+	{
+		cerr << FATAL << "Failed to set socket options." << endl;
+		throw -2;
+	}
+
+	// bind server socket
+	if (bind(this->serverSock, (sockaddr *)&serverLocalAddr, sizeof(serverLocalAddr)) < 0)
 	{
 		cerr << FATAL << "Failed to bind socket to " << port << "." << endl;
 		throw -3;
@@ -185,16 +216,16 @@ bool UnvQuery::refreshServerList()
 
 	this->lastServerListQuery = time(NULL);
 
-	// send request
-	sendto(this->sock, this->getServersQuery, strlen(this->getServersQuery), 0,
-	       (sockaddr *)&this->masterAddr, sizeof(this->masterAddr));
+	// send master request
+	sendto(this->masterSock, this->getServersQuery, strlen(this->getServersQuery), 0,
+	        (sockaddr *)&this->masterAddr, sizeof(this->masterAddr));
 
 	response[0] = '\0';
 
 	// read until we get a fitting response or timeout
 	while ( strncmp(response, GETSERVERSRESPONSE, strlen(GETSERVERSRESPONSE)) != 0 )
 	{
-		responseLen = recv(this->sock, response, sizeof(response), 0);
+		responseLen = recv(this->masterSock, response, sizeof(response), 0);
 
 		// check for timeout/error
 		if ( responseLen < 0 )
@@ -255,19 +286,19 @@ bool UnvQuery::refreshServerStatus()
 	// request status from all known servers
 	for ( serverNum = 0; serverNum < this->numKnown; serverNum++ )
 	{
-		// assemble address
+		// assemble server address
 		serverAddr.sin_addr.s_addr = this->servers[serverNum];
 		serverAddr.sin_port = this->ports[serverNum];
 
-		// request status
-		sendto(this->sock, GETSTATUSQUERY, strlen(GETSTATUSQUERY), 0, (sockaddr *)&serverAddr, sizeof(serverAddr));
+		// request server status
+		sendto(this->serverSock, GETSTATUSQUERY, strlen(GETSTATUSQUERY), 0, (sockaddr *)&serverAddr, sizeof(serverAddr));
 	}
 
-	// recieve status responses
+	// receive status responses
 	for ( serverNum = 0; serverNum < MAX_SERVERS; serverNum++ )
 	{
 		serverAddrLen = sizeof(serverAddr);
-		responseLen = recvfrom(this->sock, response, sizeof(response), 0, (sockaddr *)&serverAddr, &serverAddrLen);
+		responseLen = recvfrom(this->serverSock, response, sizeof(response), 0, (sockaddr *)&serverAddr, &serverAddrLen);
 
 		if ( responseLen < 0 )
 		{
@@ -299,7 +330,7 @@ bool UnvQuery::parseStatusResponse(int infoNum, const char *address, const char 
 
 	if ( strncmp(response, GETSTATUSRESPONSE, strlen(GETSTATUSRESPONSE)) != 0 )
 	{
-		cout << "Quake3Query: Bad getstatus response received." << endl;
+		cout << "Quake3Query: Bad getstatus response received from address " << address << "." << endl;
 		return false;
 	}
 
