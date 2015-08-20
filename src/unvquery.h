@@ -28,8 +28,7 @@ along with Mantis.  If not, see <http://www.gnu.org/licenses/>.
 #include "common.h"
 
 // Maximum number of servers to query
-// TODO: Remove 'empty' from GETSERVERSQUERY so this is always sufficient
-#define MAX_SERVERS 128
+#define MAX_SERVERS 1024
 
 // Maximum number of players on a server
 #define MAX_PLAYERS 64
@@ -47,7 +46,7 @@ along with Mantis.  If not, see <http://www.gnu.org/licenses/>.
 
 // Query and response constants
 #define PREFIX             "\xff\xff\xff\xff"
-#define GETSERVERSQUERY    PREFIX "getservers %d full empty"
+#define GETSERVERSQUERY    PREFIX "getservers %d full"
 #define GETSERVERSRESPONSE PREFIX "getserversResponse"
 #define GETSTATUSQUERY     PREFIX "getstatus"
 #define GETSTATUSRESPONSE  PREFIX "statusResponse\n"
