@@ -176,7 +176,8 @@ private:
 	bool           useColor;
 
 	// network
-	int            sock;
+	int            masterSock;
+	int            serverSock;
 	sockaddr_in    masterAddr;
 	char           getServersQuery[128];
 
