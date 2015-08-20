@@ -215,51 +215,60 @@ bool UnvQuery::refreshServerList()
 	int           responseLen = 0, position;
 
 	this->lastServerListQuery = time(NULL);
+	cout << OUTGOING << "Querying master server..." << endl;
 
 	// send master request
 	sendto(this->masterSock, this->getServersQuery, strlen(this->getServersQuery), 0,
 	        (sockaddr *)&this->masterAddr, sizeof(this->masterAddr));
 
-	response[0] = '\0';
-
-	// read until we get a fitting response or timeout
-	while ( strncmp(response, GETSERVERSRESPONSE, strlen(GETSERVERSRESPONSE)) != 0 )
+	for (this->numKnown = 0, this->serverListQuerySuccessful = false; ; )
 	{
-		responseLen = recv(this->masterSock, response, sizeof(response), 0);
+		// read until we get a fitting response or timeout
+		for (response[0] = '\0'; strncmp(response, GETSERVERSRESPONSE, strlen(GETSERVERSRESPONSE)) != 0 && responseLen >= 0; )
+		{
+			responseLen = recv(this->masterSock, response, sizeof(response), 0);
+		}
 
 		// check for timeout/error
 		if ( responseLen < 0 )
 		{
-			cout << ERROR << "Failed to query master for servers." << endl;
+			if (this->serverListQuerySuccessful == false)
+			{
+				cout << ERROR << "Failed to query master for servers." << endl;
+				return false;
+			}
+			else {
+				// no more packets
+				break;
+			}
+		}
 
-			this->serverListQuerySuccessful = false;
-			return false;
+		cout << INCOMING << "Received server list packet from master server." << endl;
+		this->serverListQuerySuccessful = true;
+
+		position = strlen(GETSERVERSRESPONSE);
+
+		// extract servers
+		for (; this->numKnown < MAX_SERVERS; this->numKnown++ )
+		{
+			if ( position >= responseLen )
+			{
+				break;
+			}
+
+			if ( sscanf(response + position, "\x5c%4c%2c", ip, port) != 2 )
+			{
+				break;
+			}
+
+			position += 7;
+
+			// extract address in NBO
+			this->servers[this->numKnown] = htonl((ip[0] << 24) + (ip[1] << 16) + (ip[2] << 8) + ip[3]);
+			this->ports[this->numKnown]   = htons((port[0] << 8) + port[1]);
 		}
 	}
 
-	position = strlen(GETSERVERSRESPONSE);
-
-	// extract servers
-	for ( this->numKnown = 0; this->numKnown < MAX_SERVERS; this->numKnown++ )
-	{
-		if ( position >= responseLen )
-		{
-			break;
-		}
-
-		if ( sscanf(response + position, "\x5c%4c%2c", ip, port) != 2 )
-		{
-			break;
-		}
-
-		position += 7;
-
-		// extract address in NBO
-		this->servers[this->numKnown] = htonl((ip[0] << 24) + (ip[1] << 16) + (ip[2] << 8) + ip[3]);
-		this->ports[this->numKnown]   = htons((port[0] << 8) + port[1]);
-	}
-
-	this->serverListQuerySuccessful = true;
 	return true;
 }
 
