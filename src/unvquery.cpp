@@ -343,7 +343,7 @@ bool UnvQuery::parseStatusResponse(int infoNum, const char *address, const char 
 
 	while ( pos < responseLen && response[pos] == '\\' )
 	{
-		fieldLen = this->parseStatusResponseField(infoNum, response + pos, responseLen - pos);
+		fieldLen = this->parseStatusResponseField(infoNum, address, response + pos, responseLen - pos);
 
 		if (fieldLen <= 0)
 		{
@@ -356,7 +356,7 @@ bool UnvQuery::parseStatusResponse(int infoNum, const char *address, const char 
 	return true;
 }
 
-int UnvQuery::parseStatusResponseField(int statusNum, const char *field, size_t maxLen)
+int UnvQuery::parseStatusResponseField(int statusNum, const char *address, const char *field, size_t maxLen)
 {
 	char   key[1024], value[1024];
 	size_t pos = 0, keyPos = 0, valuePos = 0;
@@ -364,7 +364,7 @@ int UnvQuery::parseStatusResponseField(int statusNum, const char *field, size_t 
 	// jump over first backslash
 	if ( field[pos++] != '\\' )
 	{
-		cout << NOTICE << PARSINGSTATUS << "Field doesn't start with a backslash." << endl;
+		cout << NOTICE << PARSINGSTATUS << "Field doesn't start with a backslash in status packet from address " << address << "." << endl;
 		return -1;
 	}
 
@@ -373,13 +373,13 @@ int UnvQuery::parseStatusResponseField(int statusNum, const char *field, size_t 
 	{
 		if ( keyPos >= sizeof(key) )
 		{
-			cout << NOTICE << PARSINGSTATUS << "Key too big to parse." << endl;
+			cout << NOTICE << PARSINGSTATUS << "Key too big to parse in status packet from address " << address << "." << endl;
 			return -1;
 		}
 
 		if ( pos >= maxLen )
 		{
-			cout << NOTICE << PARSINGSTATUS << "End of field while parsing key." << endl;
+			cout << NOTICE << PARSINGSTATUS << "End of field while parsing key in status packet from address " << address << "." << endl;
 			return -1;
 		}
 
@@ -396,7 +396,7 @@ int UnvQuery::parseStatusResponseField(int statusNum, const char *field, size_t 
 	// sanity check key
 	if (keyPos == 0)
 	{
-		cout << NOTICE << PARSINGSTATUS << "Found empty key." << endl;
+		cout << NOTICE << PARSINGSTATUS << "Found empty key in status packet from address " << address << "." << endl;
 		return -1;
 	}
 
@@ -405,7 +405,7 @@ int UnvQuery::parseStatusResponseField(int statusNum, const char *field, size_t 
 	{
 		if ( valuePos >= sizeof(value) )
 		{
-			cout << NOTICE << PARSINGSTATUS << "Value too big to parse." << endl;
+			cout << NOTICE << PARSINGSTATUS << "Value too big to parse in status packet from address " << address << "." << endl;
 			return -1;
 		}
 
@@ -427,7 +427,7 @@ int UnvQuery::parseStatusResponseField(int statusNum, const char *field, size_t 
 	// sanity check value
 	if (valuePos == 0)
 	{
-		cout << NOTICE << PARSINGSTATUS << "Found empty value for key " << key << "." << endl;
+		cout << NOTICE << PARSINGSTATUS << "Found empty value for key " << key << " in status packet from address " << address << "." << endl;
 		return -1;
 	}
 

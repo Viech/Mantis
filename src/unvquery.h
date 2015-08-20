@@ -205,7 +205,7 @@ private:
 
 	// parsers
 	bool parseStatusResponse(int infoNum, const char *address, const char *response, size_t responseLen);
-	int  parseStatusResponseField(int infoNum, const char *field, size_t maxLen);
+	int  parseStatusResponseField(int infoNum, const char *address, const char *field, size_t maxLen);
 	void parseStatusResponseKeyValue(int statusNum, const char *key, const char *value);
 	void analyzeClientData(int statusNum);
 
